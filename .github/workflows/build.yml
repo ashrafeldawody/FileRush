@@ -1,0 +1,28 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore FileRush.sln
+      - name: Build
+        run: dotnet build FileRush.sln --configuration Release --no-restore
+      - name: Test
+        run: dotnet test tests/FileRush.Tests/FileRush.Tests.csproj --configuration Release --no-build --verbosity normal
+      - name: Publish
+        run: dotnet publish src/FileRush.App/FileRush.App.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FileRush-win-x64
+          path: dist

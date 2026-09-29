@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "File Rush Integration Module",
+  "version": "1.0.0",
+  "description": "Sends downloads, links, batches and detected videos from the browser to File Rush.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAru3UzIncXwucrkwuTzATZ2DJBGUxaOihX35LV1oOlXyPHnJgLiUDD5alJlPZ3nbgGD7p+yyA5UEyF6O9CyXDz882EUGkXwpEiGqnHOc4MUG80XSz11/B0lHhHBgxy80NYiVmJ8zGe6DsZ3SEjX0QKp8mP71Alz8eAKdgAwsqVUkSbXlak+HDaFSG5cs5m1V13I4IirpPTY8L+HGgxIvXAlQkeTCjq7Sz0IyO8xsDqOlFeJnQUDcW6QQoVl8EUOhSWiiPtO892Npv9GrfSepn9RX3g1qxxZXJA2tbw9AntAB0owxwQ87JRTPug2LDUC+5yf3YEzIInOJiPhZWxXz1LQIDAQAB",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "downloads",
+    "nativeMessaging",
+    "contextMenus",
+    "storage",
+    "cookies",
+    "webRequest",
+    "tabs",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "File Rush",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

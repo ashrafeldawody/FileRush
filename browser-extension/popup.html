@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px/1.4 "Segoe UI", Arial, sans-serif; color: #111; margin: 0; width: 340px; background: #f0f0f0; }
+    .header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: linear-gradient(#fdfdfd, #e9edf3); border-bottom: 1px solid #b9c3d0; }
+    .header img { width: 22px; height: 22px; }
+    .header .name { font-weight: 600; flex: 1; }
+    .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #9ca3af; }
+    .dot.ok { background: #2e9e3f; }
+    .dot.bad { background: #d9342b; }
+    section { padding: 10px 12px; border-bottom: 1px solid #dfe3e8; background: #fff; }
+    section h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+    label { display: flex; align-items: center; gap: 8px; }
+    button { font: inherit; background: #fff; border: 1px solid #b9c3d0; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+    button.primary { background: #2e9e3f; border-color: #26833a; color: #fff; }
+    button:hover { background: #d9e7f7; }
+    button.primary:hover { background: #26833a; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #eef1f5; }
+    .item:last-child { border-bottom: none; }
+    .item .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item .m { color: #6b7280; font-size: 11px; }
+    .empty { color: #6b7280; }
+    footer { padding: 8px 12px; font-size: 11px; color: #6b7280; }
+    a { color: #1d4ed8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon32.png" alt="">
+    <span class="name">File Rush</span>
+    <span class="status"><span id="dot" class="dot"></span><span id="statusText">Checking...</span></span>
+  </div>
+  <section>
+    <label><input type="checkbox" id="enabled"> Catch downloads from this browser</label>
+  </section>
+  <section>
+    <h3>This page</h3>
+    <div class="row">
+      <button id="allLinks">Download all links</button>
+      <button id="options">Options</button>
+    </div>
+  </section>
+  <section>
+    <h3>Detected media</h3>
+    <div id="media"><div class="empty">No videos or audio detected on this tab yet.</div></div>
+  </section>
+  <footer>Hold Alt while clicking a link to let the browser handle it. Right-click links, images or videos for more options.</footer>
+  <script src="popup.js"></script>
+</body>
+</html>

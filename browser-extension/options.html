@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>File Rush Integration Module</title>
+  <style>
+    body { font: 14px/1.5 "Segoe UI", Arial, sans-serif; color: #111; margin: 0; background: #f0f0f0; }
+    .wrap { max-width: 720px; margin: 24px auto; background: #fff; border: 1px solid #b9c3d0; border-radius: 6px; padding: 20px 24px; }
+    h1 { font-size: 18px; margin: 0 0 16px; display: flex; align-items: center; gap: 10px; }
+    h1 img { width: 28px; height: 28px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin: 20px 0 8px; }
+    label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    textarea { width: 100%; min-height: 80px; font: 13px Consolas, monospace; box-sizing: border-box; }
+    input[type=number] { width: 100px; }
+    .hint { color: #6b7280; font-size: 12px; }
+    .saved { color: #166534; font-size: 12px; margin-left: 8px; }
+    button { font: inherit; background: #2e9e3f; border: 1px solid #26833a; color: #fff; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><img src="icons/icon48.png" alt="">File Rush Integration Module</h1>
+    <h2>Capture</h2>
+    <label><input type="checkbox" id="enabled"> Catch downloads started by the browser and send them to File Rush</label>
+    <label><input type="checkbox" id="catchLinks"> Catch clicks on links to monitored file types</label>
+    <label><input type="checkbox" id="catchAll"> Catch every download regardless of file type</label>
+    <label><input type="checkbox" id="showPanel"> Show the "Download video" panel on pages with detected media</label>
+    <label>Ignore media smaller than <input type="number" id="minMediaSize" min="0" step="1"> KB</label>
+    <h2>File types</h2>
+    <p class="hint">Extensions that File Rush takes over, separated by spaces.</p>
+    <textarea id="extensions"></textarea>
+    <h2>Exceptions</h2>
+    <p class="hint">Sites or address prefixes that the browser should handle itself, one per line (for example example.com or https://intranet/).</p>
+    <textarea id="exceptions"></textarea>
+    <p><button id="save">Save</button><span id="saved" class="saved"></span></p>
+    <h2>Setup</h2>
+    <p class="hint">File Rush registers the native messaging host for Chrome, Edge, Brave, Vivaldi, Chromium and Firefox when it starts. If the popup reports that the host was not found, open File Rush, go to Options, General and press "Register browser integration".</p>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

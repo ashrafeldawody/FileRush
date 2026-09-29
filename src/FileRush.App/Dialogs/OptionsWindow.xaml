@@ -1,0 +1,229 @@
+<Window x:Class="FileRush.App.Dialogs.OptionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="File Rush Configuration" Width="680" Height="560" MinWidth="620" MinHeight="500"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBackground}" ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TabControl x:Name="Tabs">
+            <TabItem Header="General">
+                <StackPanel Margin="12">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Startup and tray" />
+                    <CheckBox x:Name="StartWithWindowsCheck" Content="Launch File Rush on Windows startup (minimized to tray)" Margin="0,3" />
+                    <CheckBox x:Name="MinimizeToTrayCheck" Content="Minimize to the system tray" Margin="0,3" />
+                    <CheckBox x:Name="CloseToTrayCheck" Content="The close button hides the main window to the tray instead of exiting" Margin="0,3" />
+                    <CheckBox x:Name="ConfirmDeleteCheck" Content="Confirm before deleting downloads" Margin="0,3" />
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Browser integration" />
+                    <CheckBox x:Name="BrowserIntegrationCheck" Content="Register the browser integration module (native messaging host) when File Rush starts" Margin="0,3" />
+                    <TextBlock x:Name="BrowserStatusText" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="#374151" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Register browser integration" Padding="10,2" Click="RegisterBrowsers_Click" />
+                        <Button Content="Unregister" Padding="10,2" Margin="6,0,0,0" Click="UnregisterBrowsers_Click" />
+                        <Button Content="Open extension folder" Padding="10,2" Margin="6,0,0,0" Click="OpenExtensionFolder_Click" />
+                    </StackPanel>
+                    <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#4B5563"
+                               Text="Install the extension once per browser: open the extensions page (chrome://extensions, edge://extensions, brave://extensions ...), turn on Developer mode, choose Load unpacked and select the extension folder. For Firefox use manifest.firefox.json through about:debugging. Links can also be sent by running FileRush.exe with the URL as an argument." />
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Clipboard" />
+                    <CheckBox x:Name="MonitorClipboardCheck" Content="Monitor the clipboard and offer to download copied links of the monitored file types" Margin="0,3" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="File Types">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Automatically start downloading the following file types from the clipboard:" />
+                    <TextBox Grid.Row="1" x:Name="ExtensionsBox" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,6,0,10" />
+                    <TextBlock Grid.Row="2" Text="Don't start downloading automatically from the following addresses (one per line, * allowed):" />
+                    <TextBox Grid.Row="3" x:Name="ExceptionsBox" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0" />
+                </Grid>
+            </TabItem>
+            <TabItem Header="Save To">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Default download directory for each category:" />
+                    <DataGrid Grid.Row="1" x:Name="CategoriesGrid" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False" Margin="0,6,0,6" HeadersVisibility="Column" SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Category" Binding="{Binding Name}" Width="140" IsReadOnly="True" />
+                            <DataGridTextColumn Header="Folder" Binding="{Binding SaveDirectory}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button Content="Browse..." Padding="10,2" Click="BrowseCategoryFolder_Click" />
+                        <Button Content="Edit category..." Padding="10,2" Margin="6,0,0,0" Click="EditCategory_Click" />
+                        <Button Content="Add category..." Padding="10,2" Margin="6,0,0,0" Click="AddCategory_Click" />
+                        <Button Content="Remove category" Padding="10,2" Margin="6,0,0,0" Click="RemoveCategory_Click" />
+                    </StackPanel>
+                    <CheckBox Grid.Row="3" x:Name="RememberPathCheck" Content="Remember the last used folder for each category" Margin="0,10,0,0" />
+                    <Grid Grid.Row="4" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Temporary directory:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Column="1" x:Name="TempDirBox" Style="{StaticResource FieldBox}" />
+                        <Button Grid.Column="2" Content="..." Width="32" Height="24" Margin="6,0,0,0" Click="BrowseTemp_Click" />
+                    </Grid>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Connection">
+                <StackPanel Margin="12">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Connection type / speed" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <TextBlock Text="Connection type:" Style="{StaticResource FieldLabel}" />
+                        <ComboBox x:Name="ConnectionTypeBox" Width="260" Height="24" SelectionChanged="ConnectionType_Changed">
+                            <ComboBoxItem Content="Dial-up / slow (2 connections)" />
+                            <ComboBoxItem Content="DSL / Cable (8 connections)" />
+                            <ComboBoxItem Content="High speed / LAN (16 connections)" />
+                            <ComboBoxItem Content="Custom" />
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <TextBlock Text="Default max. connections per file:" Style="{StaticResource FieldLabel}" />
+                        <ComboBox x:Name="ConnectionsBox" Width="70" Height="24" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Timeouts and retries" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <TextBlock Text="Timeout (seconds):" Style="{StaticResource FieldLabel}" />
+                        <TextBox x:Name="TimeoutBox" Width="60" Style="{StaticResource FieldBox}" />
+                        <TextBlock Text="Retry attempts:" Style="{StaticResource FieldLabel}" Margin="16,0,10,0" />
+                        <TextBox x:Name="RetriesBox" Width="60" Style="{StaticResource FieldBox}" />
+                        <TextBlock Text="Retry delay (seconds):" Style="{StaticResource FieldLabel}" Margin="16,0,10,0" />
+                        <TextBox x:Name="RetryDelayBox" Width="60" Style="{StaticResource FieldBox}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <TextBlock Text="Minimum segment size (KB):" Style="{StaticResource FieldLabel}" />
+                        <TextBox x:Name="MinSegmentBox" Width="70" Style="{StaticResource FieldBox}" />
+                        <TextBlock Text="Segments are split in half dynamically while they are larger than twice this size." Foreground="#6B7280" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="280" />
+                    </StackPanel>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Downloads">
+                <StackPanel Margin="12">
+                    <StackPanel Orientation="Horizontal" Margin="0,3">
+                        <TextBlock Text="Maximum simultaneous downloads:" Style="{StaticResource FieldLabel}" />
+                        <ComboBox x:Name="SimultaneousBox" Width="70" Height="24" />
+                    </StackPanel>
+                    <CheckBox x:Name="ShowInfoDialogCheck" Content="Show &quot;Download File Info&quot; dialog before starting a download" Margin="0,8,0,3" />
+                    <CheckBox x:Name="StartWhileInfoCheck" Content="Start downloading immediately while showing the Download File Info dialog" Margin="22,3" />
+                    <CheckBox x:Name="ShowProgressCheck" Content="Show download progress dialog" Margin="0,3" />
+                    <CheckBox x:Name="ShowCompleteCheck" Content="Show download complete dialog" Margin="0,3" />
+                    <CheckBox x:Name="IgnoreModTimeCheck" Content="Ignore file modification time changes when resuming a download" Margin="0,3" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,3">
+                        <TextBlock Text="User agent for manually added downloads:" Style="{StaticResource FieldLabel}" />
+                        <TextBox x:Name="UserAgentBox" Width="300" Style="{StaticResource FieldBox}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Virus checking" />
+                    <CheckBox x:Name="VirusEnabledCheck" Content="Run a virus scanner when a download completes" Margin="0,3" />
+                    <Grid Margin="22,3,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Scanner:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Column="1" x:Name="VirusCommandBox" Style="{StaticResource FieldBox}" />
+                        <Button Grid.Column="2" Content="..." Width="32" Height="24" Margin="6,0,0,0" Click="BrowseScanner_Click" />
+                        <TextBlock Grid.Row="1" Text="Arguments:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="VirusArgsBox" Style="{StaticResource FieldBox}" ToolTip="%f is replaced with the downloaded file path" />
+                        <CheckBox Grid.Row="2" Grid.Column="1" x:Name="VirusExeOnlyCheck" Content="Scan only executable files" Margin="0,4" />
+                    </Grid>
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Proxy / Socks">
+                <StackPanel Margin="12">
+                    <RadioButton x:Name="ProxyNoneRadio" Content="Don't use a proxy" Margin="0,3" />
+                    <RadioButton x:Name="ProxySystemRadio" Content="Use the system proxy settings" Margin="0,3" />
+                    <RadioButton x:Name="ProxyManualRadio" Content="Use the following proxy server" Margin="0,3" />
+                    <Grid Margin="22,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="80" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="Type:" Style="{StaticResource FieldLabel}" />
+                        <ComboBox Grid.Column="1" x:Name="ProxyTypeBox" Width="120" Height="24" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="HTTP" />
+                            <ComboBoxItem Content="SOCKS4" />
+                            <ComboBoxItem Content="SOCKS5" />
+                        </ComboBox>
+                        <TextBlock Grid.Row="1" Text="Address:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="ProxyAddressBox" Style="{StaticResource FieldBox}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Port:" Style="{StaticResource FieldLabel}" Margin="12,0,8,0" />
+                        <TextBox Grid.Row="1" Grid.Column="3" x:Name="ProxyPortBox" Style="{StaticResource FieldBox}" />
+                        <TextBlock Grid.Row="2" Text="Username:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="ProxyUserBox" Style="{StaticResource FieldBox}" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Password:" Style="{StaticResource FieldLabel}" Margin="12,0,8,0" />
+                        <PasswordBox Grid.Row="2" Grid.Column="3" x:Name="ProxyPasswordBox" Height="24" VerticalContentAlignment="Center" />
+                        <TextBlock Grid.Row="3" Text="Bypass for:" Style="{StaticResource FieldLabel}" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" x:Name="ProxyBypassBox" Style="{StaticResource FieldBox}" ToolTip="Semicolon separated host names, * allowed" />
+                    </Grid>
+                    <CheckBox x:Name="FtpPassiveCheck" Content="Use FTP in passive (PASV) mode" Margin="0,12,0,0" />
+                </StackPanel>
+            </TabItem>
+            <TabItem Header="Site Logins">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Login information for sites that require authorization:" />
+                    <DataGrid Grid.Row="1" x:Name="LoginsGrid" AutoGenerateColumns="False" CanUserAddRows="True" Margin="0,6" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Server (host)" Binding="{Binding Host}" Width="*" />
+                            <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="160" />
+                            <DataGridTextColumn Header="Password" Binding="{Binding Password}" Width="160" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <Button Content="New" Padding="12,2" Click="NewLogin_Click" />
+                        <Button Content="Delete" Padding="12,2" Margin="6,0,0,0" Click="DeleteLogin_Click" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Speed Limiter">
+                <StackPanel Margin="12">
+                    <CheckBox x:Name="SpeedEnabledCheck" Content="Use speed limiter" Margin="0,3" />
+                    <StackPanel Orientation="Horizontal" Margin="22,6,0,0">
+                        <TextBlock Text="Maximum download speed:" Style="{StaticResource FieldLabel}" />
+                        <TextBox x:Name="SpeedBox" Width="80" Style="{StaticResource FieldBox}" />
+                        <TextBlock Text="KB/sec" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Sounds" />
+                    <CheckBox x:Name="SoundsCheck" Content="Play a sound when a download completes" Margin="0,3" />
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="OK" Style="{StaticResource DialogButton}" IsDefault="True" Click="Ok_Click" />
+            <Button Content="Cancel" Style="{StaticResource DialogButton}" IsCancel="True" />
+            <Button Content="Apply" Style="{StaticResource DialogButton}" Click="Apply_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

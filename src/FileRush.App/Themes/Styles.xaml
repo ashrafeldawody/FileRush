@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:infra="clr-namespace:FileRush.App.Infrastructure">
+
+    <infra:BytesConverter x:Key="Bytes" />
+    <infra:SpeedConverter x:Key="Speed" />
+    <infra:TimeLeftConverter x:Key="TimeLeft" />
+    <infra:DateConverter x:Key="Date" />
+    <infra:BoolToVisibilityConverter x:Key="BoolToVis" />
+    <infra:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+    <infra:StatusBrushConverter x:Key="StatusBrush" />
+    <infra:FileIconConverter x:Key="FileIcon" />
+    <infra:QueueMarkConverter x:Key="QueueMark" />
+    <infra:NullToCollapsedConverter x:Key="NullToCollapsed" />
+
+    <FontFamily x:Key="IconFont">Segoe MDL2 Assets</FontFamily>
+
+    <SolidColorBrush x:Key="WindowBackground" Color="#F0F0F0" />
+    <LinearGradientBrush x:Key="ToolbarBackground" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FDFDFD" Offset="0" />
+        <GradientStop Color="#E9EDF3" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="ToolbarBorder" Color="#B9C3D0" />
+    <SolidColorBrush x:Key="HoverBackground" Color="#D9E7F7" />
+    <SolidColorBrush x:Key="HoverBorder" Color="#7DA2CE" />
+    <SolidColorBrush x:Key="PressedBackground" Color="#BCD3EE" />
+
+    <Style x:Key="ToolbarButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Margin" Value="1,2" />
+        <Setter Property="MinWidth" Value="62" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackground}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource HoverBorder}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PressedBackground}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ToolbarIcon" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,0,3" />
+    </Style>
+
+    <Style x:Key="ToolbarLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="#1F2937" />
+    </Style>
+
+    <Style x:Key="TreeIcon" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+    </Style>
+
+    <Style x:Key="DialogButton" TargetType="Button">
+        <Setter Property="MinWidth" Value="92" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="Padding" Value="10,0" />
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,10,0" />
+    </Style>
+
+    <Style x:Key="FieldBox" TargetType="TextBox">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,3" />
+    </Style>
+
+    <Style x:Key="SectionHeader" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,8,0,4" />
+    </Style>
+
+    <Style x:Key="ListHeader" TargetType="GridViewColumnHeader">
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Padding" Value="6,3" />
+    </Style>
+
+    <Style x:Key="DownloadRow" TargetType="ListViewItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Padding" Value="2,1" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Status}" Value="Completed">
+                <Setter Property="Foreground" Value="#1F2937" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,27 @@
+<Window x:Class="FileRush.App.Dialogs.QueuePickWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add downloads to the queue" Width="560" Height="400" MinWidth="400" MinHeight="300"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBackground}" ShowInTaskbar="False">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="Select the downloads to add:" Margin="0,0,0,6" />
+        <ListView Grid.Row="1" x:Name="ItemList" SelectionMode="Extended">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="File name" Width="280" DisplayMemberBinding="{Binding FileName}" />
+                    <GridViewColumn Header="Size" Width="90" DisplayMemberBinding="{Binding TotalSize, Converter={StaticResource Bytes}}" />
+                    <GridViewColumn Header="Status" Width="130" DisplayMemberBinding="{Binding StatusText}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Add" Style="{StaticResource DialogButton}" IsDefault="True" Click="Add_Click" />
+            <Button Content="Cancel" Style="{StaticResource DialogButton}" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,43 @@
+<Window x:Class="FileRush.App.Dialogs.BatchDownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add batch download with wildcards" Width="640" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBackground}" ShowInTaskbar="False">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,6"
+                   Text="Enter the address with an asterisk (*) in place of the changing part, for example http://example.com/photos/img*.jpg. You can also use ranges in brackets like file[001-120].zip or part[a-z].rar." />
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Address:" Style="{StaticResource FieldLabel}" />
+            <TextBox Grid.Column="1" x:Name="PatternBox" Style="{StaticResource FieldBox}" TextChanged="Input_Changed" />
+        </Grid>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+            <TextBlock Text="From:" Style="{StaticResource FieldLabel}" />
+            <TextBox x:Name="FromBox" Width="70" Style="{StaticResource FieldBox}" Text="1" TextChanged="Input_Changed" />
+            <TextBlock Text="To:" Style="{StaticResource FieldLabel}" Margin="14,0,10,0" />
+            <TextBox x:Name="ToBox" Width="70" Style="{StaticResource FieldBox}" Text="10" TextChanged="Input_Changed" />
+            <TextBlock Text="Wildcard:" Style="{StaticResource FieldLabel}" Margin="14,0,10,0" />
+            <RadioButton x:Name="NumbersRadio" Content="Numbers" IsChecked="True" VerticalAlignment="Center" Checked="Input_Changed" />
+            <RadioButton x:Name="LettersRadio" Content="Letters" VerticalAlignment="Center" Margin="10,0,0,0" Checked="Input_Changed" />
+            <TextBlock Text="Digits:" Style="{StaticResource FieldLabel}" Margin="14,0,10,0" />
+            <TextBox x:Name="DigitsBox" Width="40" Style="{StaticResource FieldBox}" Text="1" TextChanged="Input_Changed" />
+        </StackPanel>
+        <TextBlock Grid.Row="3" x:Name="PreviewHeader" Margin="0,10,0,4" FontWeight="SemiBold" Text="Preview:" />
+        <ListBox Grid.Row="4" x:Name="PreviewList" Height="180" FontFamily="Consolas" />
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="OK" Style="{StaticResource DialogButton}" IsDefault="True" Click="Ok_Click" />
+            <Button Content="Cancel" Style="{StaticResource DialogButton}" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

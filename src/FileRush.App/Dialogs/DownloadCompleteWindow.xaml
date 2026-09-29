@@ -1,0 +1,28 @@
+<Window x:Class="FileRush.App.Dialogs.DownloadCompleteWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Download complete" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource WindowBackground}" Topmost="True">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <Image x:Name="FileIcon" Width="32" Height="32" Margin="0,0,14,0" VerticalAlignment="Top" />
+            <StackPanel>
+                <TextBlock Text="Download complete" FontSize="15" FontWeight="SemiBold" Foreground="#166534" />
+                <TextBlock x:Name="FileNameText" Margin="0,6,0,0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                <TextBlock x:Name="SizeText" Foreground="#4B5563" />
+                <TextBlock x:Name="FolderText" Foreground="#4B5563" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+            </StackPanel>
+        </StackPanel>
+        <CheckBox Grid.Row="1" x:Name="DontShowCheck" Content="Don't show this dialog again" Margin="46,12,0,0" />
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Open" Style="{StaticResource DialogButton}" IsDefault="True" Click="Open_Click" />
+            <Button Content="Open folder" Style="{StaticResource DialogButton}" Click="OpenFolder_Click" />
+            <Button Content="Close" Style="{StaticResource DialogButton}" IsCancel="True" Click="Close_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
