@@ -143,6 +143,10 @@ public sealed class DownloadManager : IDisposable
             FtpPassive = s.Proxy.UseFtpPassive
         };
         ApplyProxy(options, s.Proxy);
+        if (s.CombineNetworkAdapters)
+        {
+            options.Routes = NetworkAdapters.Select(NetworkAdapters.GetInternetRoutes(), s.CombinedAdapterIds);
+        }
         return options;
     }
 

@@ -11,6 +11,19 @@ public sealed class SegmentBar : FrameworkElement
     private static readonly Brush Remaining = Brushes.White;
     private static readonly Pen StartPen = new(new SolidColorBrush(Color.FromRgb(0xE8, 0x3E, 0xA8)), 1.5);
     private static readonly Pen BorderPen = new(new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)), 1);
+    private static readonly Pen HeadPen = new(new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27)), 2);
+
+    public static readonly Brush PreviousSession = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF));
+
+    public static readonly IReadOnlyList<Brush> RoutePalette = new Brush[]
+    {
+        new SolidColorBrush(Color.FromRgb(0x2E, 0x62, 0xC8)),
+        new SolidColorBrush(Color.FromRgb(0xE0, 0x7B, 0x00)),
+        new SolidColorBrush(Color.FromRgb(0x2E, 0x9E, 0x5B)),
+        new SolidColorBrush(Color.FromRgb(0x8E, 0x44, 0xAD)),
+        new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B)),
+        new SolidColorBrush(Color.FromRgb(0x16, 0x8A, 0x9E))
+    };
 
     static SegmentBar()
     {
@@ -18,6 +31,9 @@ public sealed class SegmentBar : FrameworkElement
         ActiveDownloaded.Freeze();
         StartPen.Freeze();
         BorderPen.Freeze();
+        HeadPen.Freeze();
+        PreviousSession.Freeze();
+        foreach (var brush in RoutePalette) brush.Freeze();
     }
 
     public static readonly DependencyProperty SegmentsProperty = DependencyProperty.Register(
@@ -41,10 +57,28 @@ public sealed class SegmentBar : FrameworkElement
         set => SetValue(TotalSizeProperty, value);
     }
 
+    public static readonly DependencyProperty PiecesProperty = DependencyProperty.Register(
+        nameof(Pieces), typeof(IReadOnlyList<DownloadPiece>), typeof(SegmentBar), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty RouteBrushesProperty = DependencyProperty.Register(
+        nameof(RouteBrushes), typeof(IReadOnlyDictionary<string, Brush>), typeof(SegmentBar), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public long IndeterminateBytes
     {
         get => (long)GetValue(IndeterminateBytesProperty);
         set => SetValue(IndeterminateBytesProperty, value);
+    }
+
+    public IReadOnlyList<DownloadPiece>? Pieces
+    {
+        get => (IReadOnlyList<DownloadPiece>?)GetValue(PiecesProperty);
+        set => SetValue(PiecesProperty, value);
+    }
+
+    public IReadOnlyDictionary<string, Brush>? RouteBrushes
+    {
+        get => (IReadOnlyDictionary<string, Brush>?)GetValue(RouteBrushesProperty);
+        set => SetValue(RouteBrushesProperty, value);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -74,15 +108,25 @@ public sealed class SegmentBar : FrameworkElement
             return;
         }
         var scale = (width - 2) / total;
+        var pieces = Pieces;
+        var routeBrushes = RouteBrushes;
+        var colorByRoute = pieces is not null && routeBrushes is not null;
         foreach (var segment in segments)
         {
             var end = segment.End < 0 ? total - 1 : segment.End;
             var downloadedEnd = Math.Min(segment.Position, end + 1);
             if (downloadedEnd > segment.Start)
             {
-                var x1 = 1 + segment.Start * scale;
-                var x2 = 1 + downloadedEnd * scale;
-                dc.DrawRectangle(segment.Active ? ActiveDownloaded : Downloaded, null, new Rect(x1, 1, Math.Max(0.5, x2 - x1), height - 2));
+                var brush = colorByRoute ? PreviousSession : segment.Active ? ActiveDownloaded : Downloaded;
+                DrawRange(dc, brush, segment.Start, downloadedEnd, scale, height);
+            }
+        }
+        if (colorByRoute)
+        {
+            foreach (var piece in pieces!)
+            {
+                var brush = routeBrushes!.TryGetValue(piece.Route, out var routeBrush) ? routeBrush : Downloaded;
+                DrawRange(dc, brush, piece.Start, piece.End + 1, scale, height);
             }
         }
         foreach (var segment in segments)
@@ -90,5 +134,21 @@ public sealed class SegmentBar : FrameworkElement
             var x = 1 + segment.Start * scale;
             dc.DrawLine(StartPen, new Point(x, 1), new Point(x, height - 1));
         }
+        if (colorByRoute)
+        {
+            foreach (var segment in segments)
+            {
+                if (segment.Connection == 0 || segment.IsComplete) continue;
+                var x = 1 + segment.Position * scale;
+                dc.DrawLine(HeadPen, new Point(x, 1), new Point(x, height - 1));
+            }
+        }
+    }
+
+    private static void DrawRange(DrawingContext dc, Brush brush, long start, long endExclusive, double scale, double height)
+    {
+        var x1 = 1 + start * scale;
+        var x2 = 1 + endExclusive * scale;
+        dc.DrawRectangle(brush, null, new Rect(x1, 1, Math.Max(0.5, x2 - x1), height - 2));
     }
 }

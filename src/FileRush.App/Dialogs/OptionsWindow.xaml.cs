@@ -3,9 +3,17 @@ using System.Windows;
 using System.Windows.Controls;
 using FileRush.App.Infrastructure;
 using FileRush.Core.Models;
+using FileRush.Core.Utils;
 using Microsoft.Win32;
 
 namespace FileRush.App.Dialogs;
+
+public sealed class AdapterOption
+{
+    public string Id { get; init; } = string.Empty;
+    public string Label { get; init; } = string.Empty;
+    public bool Selected { get; set; }
+}
 
 public partial class OptionsWindow : Window
 {
@@ -13,6 +21,7 @@ public partial class OptionsWindow : Window
     private readonly ObservableCollection<Category> _categories;
     private readonly ObservableCollection<SiteLogin> _logins;
     private bool _loading = true;
+    private List<AdapterOption> _adapters = new();
 
     public OptionsWindow(int initialTab = 0)
     {
@@ -50,6 +59,7 @@ public partial class OptionsWindow : Window
         RetriesBox.Text = _settings.MaxRetries.ToString();
         RetryDelayBox.Text = _settings.RetryDelaySeconds.ToString();
         MinSegmentBox.Text = _settings.MinSegmentSizeKb.ToString();
+        LoadAdapters();
         SimultaneousBox.SelectedIndex = Math.Clamp(_settings.MaxSimultaneousDownloads, 1, 32) - 1;
         ShowInfoDialogCheck.IsChecked = _settings.ShowStartDownloadDialog;
         StartWhileInfoCheck.IsChecked = _settings.StartDownloadWhileShowingInfoDialog;
@@ -103,6 +113,7 @@ public partial class OptionsWindow : Window
         _settings.MaxRetries = retries;
         _settings.RetryDelaySeconds = retryDelay;
         _settings.MinSegmentSizeKb = minSegment;
+        SaveAdapters();
         _settings.MaxSimultaneousDownloads = SimultaneousBox.SelectedIndex + 1;
         _settings.ShowStartDownloadDialog = ShowInfoDialogCheck.IsChecked == true;
         _settings.StartDownloadWhileShowingInfoDialog = StartWhileInfoCheck.IsChecked == true;
@@ -131,6 +142,41 @@ public partial class OptionsWindow : Window
         _settings.Categories = _categories.ToList();
         App.Services.SaveSettings();
         return true;
+    }
+
+    private void LoadAdapters()
+    {
+        CombineAdaptersCheck.IsChecked = _settings.CombineNetworkAdapters;
+        var saved = _settings.CombinedAdapterIds;
+        _adapters = NetworkAdapters.GetInternetRoutes()
+            .Select(r => new AdapterOption
+            {
+                Id = r.Id,
+                Label = $"{r.Name}  ({string.Join(", ", r.Addresses)})",
+                Selected = saved.Count == 0 || saved.Contains(r.Id, StringComparer.OrdinalIgnoreCase)
+            })
+            .ToList();
+        AdapterList.ItemsSource = _adapters;
+        AdapterHintText.Text = _adapters.Count switch
+        {
+            0 => "No connected adapters with internet access were found.",
+            1 => "Only one connected adapter was found. Connect a second one (for example a phone hotspot over Wi-Fi) and reopen this window.",
+            _ => "The server must support resuming (byte ranges). Each connection is bound to one adapter; faster adapters take more of the file automatically."
+        };
+    }
+
+    private void SaveAdapters()
+    {
+        _settings.CombineNetworkAdapters = CombineAdaptersCheck.IsChecked == true;
+        var present = _adapters.Select(a => a.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var absentSaved = _settings.CombinedAdapterIds.Where(id => !present.Contains(id)).ToList();
+        if (absentSaved.Count == 0 && !_adapters.Any(a => a.Selected)) _settings.CombineNetworkAdapters = false;
+        if (absentSaved.Count == 0 && _adapters.All(a => a.Selected))
+        {
+            _settings.CombinedAdapterIds = new List<string>();
+            return;
+        }
+        _settings.CombinedAdapterIds = _adapters.Where(a => a.Selected).Select(a => a.Id).Concat(absentSaved).ToList();
     }
 
     private void UpdateBrowserStatus()

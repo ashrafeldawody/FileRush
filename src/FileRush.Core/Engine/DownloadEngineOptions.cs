@@ -18,4 +18,13 @@ public sealed class DownloadEngineOptions
     public string? TempDirectory { get; set; }
     public TimeSpan ProgressInterval { get; set; } = TimeSpan.FromMilliseconds(400);
     public TimeSpan StateSaveInterval { get; set; } = TimeSpan.FromSeconds(3);
+    public IReadOnlyList<NetworkRoute> Routes { get; set; } = Array.Empty<NetworkRoute>();
+    public NetworkRoute? Route { get; set; }
+
+    public DownloadEngineOptions ForRoute(NetworkRoute route)
+    {
+        var copy = (DownloadEngineOptions)MemberwiseClone();
+        copy.Route = route;
+        return copy;
+    }
 }

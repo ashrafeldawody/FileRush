@@ -108,9 +108,10 @@ public sealed class HttpRangeSource : IRangeSource
         var agent = string.IsNullOrWhiteSpace(_item.UserAgent) ? _options.UserAgent : _item.UserAgent;
         request.Headers.TryAddWithoutValidation("User-Agent", agent);
         request.Headers.TryAddWithoutValidation("Accept", "*/*");
-        if (!string.IsNullOrWhiteSpace(_item.Referrer))
+        var referrer = string.IsNullOrWhiteSpace(_item.Referrer) ? OriginOf(_item.Url) : _item.Referrer;
+        if (referrer is not null)
         {
-            request.Headers.TryAddWithoutValidation("Referer", _item.Referrer);
+            request.Headers.TryAddWithoutValidation("Referer", referrer);
         }
         foreach (var (key, value) in _item.Headers)
         {
@@ -118,6 +119,11 @@ public sealed class HttpRangeSource : IRangeSource
             request.Headers.Remove(key);
             request.Headers.TryAddWithoutValidation(key, value);
         }
+    }
+
+    private static string? OriginOf(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.GetLeftPart(UriPartial.Authority) + "/" : null;
     }
 
     public void Dispose()

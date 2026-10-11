@@ -1,6 +1,7 @@
 using FileRush.Core.Engine;
 using FileRush.Core.Models;
 using FileRush.Core.Services;
+using FileRush.Core.Utils;
 using Xunit;
 
 namespace FileRush.Tests;
@@ -257,6 +258,25 @@ public sealed class DownloadManagerTests : IDisposable
         Assert.Equal(0, manager.Limiter.BytesPerSecond);
         manager.SetSpeedLimit(true, 5);
         Assert.Equal(5 * 1024, manager.Limiter.BytesPerSecond);
+    }
+
+    [Fact]
+    public void BuildOptions_LeavesRoutesEmpty_UnlessAdaptersAreCombined()
+    {
+        var manager = NewManager(s => s.CombineNetworkAdapters = false);
+        Assert.Empty(manager.BuildOptions(new DownloadItem { Url = "http://x/y" }).Routes);
+    }
+
+    [Fact]
+    public void SelectRoutes_EmptySelectionMeansAll_OtherwiseFiltersById()
+    {
+        var available = new[]
+        {
+            new NetworkRoute("{A}", "Ethernet", new[] { System.Net.IPAddress.Parse("10.0.0.2") }),
+            new NetworkRoute("{B}", "Wi-Fi", new[] { System.Net.IPAddress.Parse("192.168.43.5") })
+        };
+        Assert.Equal(available, NetworkAdapters.Select(available, Array.Empty<string>()));
+        Assert.Equal(new[] { available[1] }, NetworkAdapters.Select(available, new[] { "{b}", "{missing}" }));
     }
 
     [Fact]

@@ -55,6 +55,10 @@ public sealed class RangeSourceFactory : IRangeSourceFactory
         {
             handler.Credentials = credential;
         }
+        if (options.Route is not null)
+        {
+            handler.ConnectCallback = RouteConnector.For(options.Route);
+        }
         if (options.Proxy is not null)
         {
             handler.UseProxy = true;

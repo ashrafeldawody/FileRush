@@ -10,6 +10,7 @@ namespace FileRush.Core.Engine;
 
 public sealed class DownloadJob
 {
+    private const int RejectedRetryLimit = 3;
     private readonly DownloadItem _item;
     private readonly DownloadEngineOptions _options;
     private readonly SpeedLimiter _limiter;
@@ -17,10 +18,14 @@ public sealed class DownloadJob
     private readonly object _gate = new();
     private readonly List<Segment> _segments = new();
     private readonly HashSet<Segment> _assigned = new();
+    private readonly Dictionary<Segment, ConnectionInfo> _owners = new();
+    private readonly List<Piece> _pieces = new();
     private readonly List<ConnectionInfo> _connections = new();
     private readonly SpeedMeter _meter = new();
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private CancellationTokenSource? _cts;
+    private CancellationTokenSource? _attemptCts;
+    private volatile bool _rangeConfirmed;
     private SafeFileHandle? _file;
     private Exception? _fatal;
     private volatile bool _pauseRequested;
@@ -53,7 +58,31 @@ public sealed class DownloadJob
     {
         lock (_gate)
         {
-            return _segments.Select(s => new SegmentSnapshot(s.Start, s.End, s.Position, _assigned.Contains(s))).ToList();
+            return _segments.Select(s => _owners.TryGetValue(s, out var owner)
+                    ? new SegmentSnapshot(s.Start, s.End, s.Position, true, owner.Number, owner.Route)
+                    : new SegmentSnapshot(s.Start, s.End, s.Position, _assigned.Contains(s)))
+                .ToList();
+        }
+    }
+
+    public IReadOnlyList<string> GetRejectedRoutes()
+    {
+        return _connections
+            .Where(c => !string.IsNullOrEmpty(c.Route))
+            .GroupBy(c => c.Route)
+            .Where(g => g.All(c => c.RejectedByServer))
+            .Select(g => g.Key)
+            .ToList();
+    }
+
+    public IReadOnlyList<DownloadPiece> GetPieces()
+    {
+        lock (_gate)
+        {
+            return _pieces
+                .Where(p => p.Position > p.Start)
+                .Select(p => new DownloadPiece(p.Start, p.Position - 1, p.Connection, p.Route))
+                .ToList();
         }
     }
 
@@ -136,6 +165,9 @@ public sealed class DownloadJob
         {
             _segments.Clear();
             _assigned.Clear();
+            _owners.Clear();
+            _pieces.Clear();
+            _rangeConfirmed = false;
             _item.SupportsResume = false;
             _item.ResetProgress();
         }
@@ -145,7 +177,48 @@ public sealed class DownloadJob
 
     private async Task DownloadAsync(CancellationToken ct)
     {
-        using var source = _factory.Create(_item, _options);
+        var sources = CreateSources();
+        try
+        {
+            await DownloadAsync(sources, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (var routed in sources) routed.Source.Dispose();
+        }
+    }
+
+    private List<RoutedSource> CreateSources()
+    {
+        var sources = new List<RoutedSource>();
+        if (_options.Routes.Count == 0 || IsFtp())
+        {
+            sources.Add(new RoutedSource(string.Empty, _factory.Create(_item, _options)));
+            return sources;
+        }
+        try
+        {
+            foreach (var route in _options.Routes)
+            {
+                sources.Add(new RoutedSource(route.Name, _factory.Create(_item, _options.ForRoute(route))));
+            }
+        }
+        catch
+        {
+            foreach (var routed in sources) routed.Source.Dispose();
+            throw;
+        }
+        return sources;
+    }
+
+    private bool IsFtp()
+    {
+        return Uri.TryCreate(_item.Url, UriKind.Absolute, out var uri) && uri.Scheme.Equals("ftp", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task DownloadAsync(IReadOnlyList<RoutedSource> sources, CancellationToken ct)
+    {
+        var source = sources[0].Source;
         _item.StatusText = "Sending request...";
 
         long probeStart = 0, probeEnd = -1;
@@ -171,13 +244,17 @@ public sealed class DownloadJob
                 }
                 StartFresh(info);
             }
+            else if (probe.IsPartial && probeStart > 0)
+            {
+                _rangeConfirmed = true;
+            }
             OpenFile();
 
-            var connectionCount = _item.SupportsResume && _item.TotalSize > 0 ? EffectiveMaxConnections() : 1;
+            var connectionCount = _item.SupportsResume && _item.TotalSize > 0 ? Math.Clamp(Math.Max(EffectiveMaxConnections(), sources.Count), 1, 32) : 1;
             _connections.Clear();
             for (int i = 0; i < connectionCount; i++)
             {
-                _connections.Add(new ConnectionInfo { Number = i + 1 });
+                _connections.Add(new ConnectionInfo { Number = i + 1, Route = sources[i % sources.Count].Route });
             }
 
             _item.Status = DownloadStatus.Downloading;
@@ -185,6 +262,8 @@ public sealed class DownloadJob
             _meter.Reset();
             _meter.Update(TotalDownloaded());
 
+            using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _attemptCts = attemptCts;
             using var progressCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var progressTask = ProgressLoopAsync(progressCts.Token);
             var workers = new Task[connectionCount];
@@ -192,7 +271,7 @@ public sealed class DownloadJob
             {
                 var initial = i == 0 ? probe : null;
                 probe = null;
-                workers[i] = WorkerAsync(i, source, initial, ct);
+                workers[i] = WorkerAsync(i, sources[i % sources.Count].Source, initial, attemptCts.Token);
             }
             try
             {
@@ -203,6 +282,7 @@ public sealed class DownloadJob
             }
             finally
             {
+                _attemptCts = null;
                 progressCts.Cancel();
                 try { await progressTask.ConfigureAwait(false); } catch { }
             }
@@ -408,6 +488,7 @@ public sealed class DownloadJob
             {
                 segment ??= AcquireSegment();
                 if (segment is null) break;
+                lock (_gate) _owners[segment] = connection;
                 connection.Active = true;
                 var yielded = false;
                 try
@@ -432,7 +513,11 @@ public sealed class DownloadJob
                 }
                 finally
                 {
-                    lock (_gate) _assigned.Remove(segment);
+                    lock (_gate)
+                    {
+                        _assigned.Remove(segment);
+                        _owners.Remove(segment);
+                    }
                     connection.Active = false;
                 }
                 segment = null;
@@ -450,7 +535,7 @@ public sealed class DownloadJob
     private void Fail(Exception ex)
     {
         Interlocked.CompareExchange(ref _fatal, ex, null);
-        try { _cts?.Cancel(); } catch (ObjectDisposedException) { }
+        try { _attemptCts?.Cancel(); } catch (ObjectDisposedException) { }
     }
 
     private Segment? AcquireSegment()
@@ -516,15 +601,7 @@ public sealed class DownloadJob
             {
                 throw;
             }
-            catch (RangeNotSupportedException)
-            {
-                throw;
-            }
-            catch (RemoteFileChangedException)
-            {
-                throw;
-            }
-            catch (Exception ex) when (IsRetryable(ex))
+            catch (Exception ex) when (IsRetryable(ex) || ex is RangeNotSupportedException or RemoteFileChangedException)
             {
                 if (ShouldYieldConnection(ex))
                 {
@@ -532,12 +609,22 @@ public sealed class DownloadJob
                     throw new ConnectionYieldException();
                 }
                 attempt++;
-                if (attempt > _options.MaxRetries)
+                var othersWorking = OtherConnectionsActive(connection);
+                var rejected = ex is RangeNotSupportedException or RemoteFileChangedException;
+                var limit = rejected && (othersWorking || !_rangeConfirmed) ? Math.Min(RejectedRetryLimit, _options.MaxRetries) : _options.MaxRetries;
+                if (attempt > limit)
                 {
+                    if (rejected && !_rangeConfirmed) throw;
+                    if (othersWorking)
+                    {
+                        connection.RejectedByServer = rejected;
+                        connection.Info = $"Gave up: {Describe(ex)} Other connections take over its part.";
+                        throw new ConnectionYieldException();
+                    }
                     throw new DownloadFailedException(Describe(ex), ex);
                 }
                 var delay = RetryDelayFor(ex, attempt);
-                connection.Info = $"Error: {Describe(ex)}. Retry {attempt}/{_options.MaxRetries} in {delay.TotalSeconds:F0}s";
+                connection.Info = $"Error: {Describe(ex)}. Retry {attempt}/{limit} in {delay.TotalSeconds:F0}s";
                 await Task.Delay(delay, ct).ConfigureAwait(false);
             }
             finally
@@ -550,15 +637,18 @@ public sealed class DownloadJob
     private void ValidateResponse(RangeResponse response, long start)
     {
         if (!response.IsPartial && start > 0) throw new RangeNotSupportedException();
-        if (_options.IgnoreModificationTime) return;
-        if (!string.IsNullOrEmpty(_item.ETag) && !string.IsNullOrEmpty(response.ETag) && !string.Equals(_item.ETag, response.ETag, StringComparison.Ordinal))
+        if (!_options.IgnoreModificationTime)
         {
-            throw new RemoteFileChangedException();
+            if (!string.IsNullOrEmpty(_item.ETag) && !string.IsNullOrEmpty(response.ETag) && !string.Equals(_item.ETag, response.ETag, StringComparison.Ordinal))
+            {
+                throw new RemoteFileChangedException();
+            }
+            if (_item.TotalSize > 0 && response.TotalLength > 0 && response.TotalLength != _item.TotalSize)
+            {
+                throw new RemoteFileChangedException();
+            }
         }
-        if (_item.TotalSize > 0 && response.TotalLength > 0 && response.TotalLength != _item.TotalSize)
-        {
-            throw new RemoteFileChangedException();
-        }
+        if (response.IsPartial && start > 0) _rangeConfirmed = true;
     }
 
     private async Task CopyAsync(Segment segment, ConnectionInfo connection, Stream stream, CancellationToken ct)
@@ -566,6 +656,12 @@ public sealed class DownloadJob
         var bufferSize = _options.BufferSize;
         var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
         using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Piece piece;
+        lock (_gate)
+        {
+            piece = new Piece(segment.Position, connection.Number, connection.Route);
+            _pieces.Add(piece);
+        }
         try
         {
             while (true)
@@ -612,6 +708,7 @@ public sealed class DownloadJob
                     {
                         segment.Position = segment.End + 1;
                     }
+                    piece.Position = segment.Position;
                     done = segment.IsComplete;
                 }
                 connection.Downloaded += allowed;
@@ -660,6 +757,12 @@ public sealed class DownloadJob
         var factor = Math.Min(attempt, 6);
         var delay = _options.RetryDelay * factor;
         return delay > TimeSpan.FromSeconds(60) ? TimeSpan.FromSeconds(60) : delay;
+    }
+
+    private bool OtherConnectionsActive(ConnectionInfo connection)
+    {
+        foreach (var c in _connections) if (c != connection && c.Active) return true;
+        return false;
     }
 
     private bool ShouldYieldConnection(Exception ex)
@@ -758,5 +861,23 @@ public sealed class DownloadJob
         _item.Status = DownloadStatus.Downloading;
         _item.StatusText = total > 0 ? $"{_item.Progress:F2}%" : "Receiving data...";
         ProgressChanged?.Invoke(this);
+    }
+
+    private sealed record RoutedSource(string Route, IRangeSource Source);
+
+    private sealed class Piece
+    {
+        public Piece(long start, int connection, string route)
+        {
+            Start = start;
+            Position = start;
+            Connection = connection;
+            Route = route;
+        }
+
+        public long Start { get; }
+        public long Position { get; set; }
+        public int Connection { get; }
+        public string Route { get; }
     }
 }

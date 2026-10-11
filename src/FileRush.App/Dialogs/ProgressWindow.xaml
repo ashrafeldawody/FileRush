@@ -43,7 +43,27 @@
             <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ResumeText" Margin="0,2" />
         </Grid>
 
-        <controls:SegmentBar Grid.Row="1" x:Name="Bar" Height="26" Margin="0,10,0,0" />
+        <StackPanel Grid.Row="1" Margin="0,10,0,0">
+            <controls:SegmentBar x:Name="Bar" Height="26" />
+            <ItemsControl x:Name="Legend" Margin="0,5,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                            <Rectangle Width="12" Height="12" Fill="{Binding Brush}" Stroke="#6B7280" StrokeThickness="0.5" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Text}" Margin="5,0,0,0" Foreground="#374151" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border x:Name="RejectedWarning" Visibility="Collapsed" Margin="0,6,0,0" Padding="8,5" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="3">
+                <TextBlock x:Name="RejectedWarningText" TextWrapping="Wrap" Foreground="#78350F" />
+            </Border>
+        </StackPanel>
 
         <Grid Grid.Row="2" Margin="0,10,0,0">
             <Grid.ColumnDefinitions>
@@ -77,15 +97,35 @@
                 <TextBlock x:Name="ConnectionsText" Foreground="#4B5563" Margin="18,0,0,0" />
                 <TextBlock x:Name="SavePathText" Foreground="#4B5563" Margin="18,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="280" />
             </StackPanel>
-            <ListView Grid.Row="1" x:Name="ConnectionList" Height="170">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="N." Width="40" DisplayMemberBinding="{Binding Number}" />
-                        <GridViewColumn Header="Downloaded" Width="110" DisplayMemberBinding="{Binding Downloaded, Converter={StaticResource Bytes}}" />
-                        <GridViewColumn Header="Info" Width="410" DisplayMemberBinding="{Binding Info}" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
+            <TabControl Grid.Row="1" Height="200">
+                <TabItem Header="Connections">
+                    <ListView x:Name="ConnectionList" BorderThickness="0">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="N." Width="36" DisplayMemberBinding="{Binding Number}" />
+                                <GridViewColumn Header="Adapter" Width="100" DisplayMemberBinding="{Binding Route}" />
+                                <GridViewColumn Header="Part" Width="44" DisplayMemberBinding="{Binding Part}" />
+                                <GridViewColumn Header="Downloaded" Width="95" DisplayMemberBinding="{Binding Downloaded, Converter={StaticResource Bytes}}" />
+                                <GridViewColumn Header="Info" Width="290" DisplayMemberBinding="{Binding Info}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </TabItem>
+                <TabItem Header="Parts">
+                    <ListView x:Name="PartList" BorderThickness="0">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Part" Width="40" DisplayMemberBinding="{Binding Number}" />
+                                <GridViewColumn Header="Range" Width="170" DisplayMemberBinding="{Binding Range}" />
+                                <GridViewColumn Header="Size" Width="80" DisplayMemberBinding="{Binding Size}" />
+                                <GridViewColumn Header="Done" Width="60" DisplayMemberBinding="{Binding Done}" />
+                                <GridViewColumn Header="Connection" Width="75" DisplayMemberBinding="{Binding Connection}" />
+                                <GridViewColumn Header="Adapter" Width="135" DisplayMemberBinding="{Binding Route}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </TabItem>
+            </TabControl>
         </Grid>
     </Grid>
 </Window>

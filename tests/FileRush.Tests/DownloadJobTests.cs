@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using FileRush.Core.Engine;
 using FileRush.Core.Models;
 using Xunit;
@@ -347,6 +348,190 @@ public sealed class DownloadJobTests : IDisposable
         Assert.Equal(data.Length, info.Size);
         Assert.True(info.SupportsRange);
         Assert.Equal("probed.dat", info.FileName);
+    }
+
+    [Fact]
+    public async Task MultipleRoutes_BindEachConnectionToItsAdapter_AndBothCarryData()
+    {
+        var data = TestUtil.RandomBytes(3 * 1024 * 1024, 51);
+        var url = _server.AddFile("/combined.bin", data);
+        var item = NewItem(url);
+        var options = TestUtil.Options(TempDir);
+        var first = IPAddress.Parse("127.0.0.2");
+        var second = IPAddress.Parse("127.0.0.3");
+        options.Routes = new[]
+        {
+            new NetworkRoute("eth", "Ethernet", new[] { first }),
+            new NetworkRoute("wifi", "Wi-Fi", new[] { second })
+        };
+        var job = NewJob(item, options);
+
+        await job.RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+        Assert.Equal(new[] { "Ethernet", "Wi-Fi", "Ethernet", "Wi-Fi" }, job.Connections.Select(c => c.Route));
+        Assert.True(job.Connections.Where(c => c.Route == "Ethernet").Sum(c => c.Downloaded) > 0);
+        Assert.True(job.Connections.Where(c => c.Route == "Wi-Fi").Sum(c => c.Downloaded) > 0);
+        var pieces = job.GetPieces().OrderBy(p => p.Start).ToList();
+        Assert.Equal(data.Length, pieces.Sum(p => p.Length));
+        for (int i = 1; i < pieces.Count; i++) Assert.True(pieces[i].Start > pieces[i - 1].End);
+        Assert.All(pieces, p => Assert.Equal(job.Connections[p.Connection - 1].Route, p.Route));
+        Assert.Equal(new[] { "Ethernet", "Wi-Fi" }, pieces.Select(p => p.Route).Distinct().OrderBy(r => r));
+        Assert.All(job.GetSegments(), s => Assert.Equal(0, s.Connection));
+        Assert.Empty(job.GetRejectedRoutes());
+        var clients = _server.ClientAddresses.ToHashSet();
+        Assert.Contains(first, clients);
+        Assert.Contains(second, clients);
+        Assert.DoesNotContain(IPAddress.Loopback, clients);
+    }
+
+    [Fact]
+    public async Task WhileDownloading_SegmentsReportTheirConnectionAndRoute()
+    {
+        var data = TestUtil.RandomBytes(2 * 1024 * 1024, 55);
+        _server.DelayPerChunkMs = 20;
+        var url = _server.AddFile("/owners.bin", data);
+        var item = NewItem(url);
+        var options = TestUtil.Options(TempDir, connections: 2);
+        options.Routes = new[]
+        {
+            new NetworkRoute("eth", "Ethernet", new[] { IPAddress.Parse("127.0.0.6") }),
+            new NetworkRoute("wifi", "Wi-Fi", new[] { IPAddress.Parse("127.0.0.7") })
+        };
+        var job = NewJob(item, options);
+
+        var run = job.RunAsync(_cts.Token);
+        await TestUtil.WaitUntilAsync(() => job.GetSegments().Count(s => s.Connection > 0) == 2, "both connections to own a part");
+        var owned = job.GetSegments().Where(s => s.Connection > 0).OrderBy(s => s.Connection).ToList();
+        Assert.Equal(new[] { 1, 2 }, owned.Select(s => s.Connection));
+        Assert.Equal(new[] { "Ethernet", "Wi-Fi" }, owned.Select(s => s.Route));
+        await run;
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+    }
+
+    [Fact]
+    public async Task MoreRoutesThanConnections_StillUsesEveryRoute()
+    {
+        var data = TestUtil.RandomBytes(1024 * 1024, 52);
+        var url = _server.AddFile("/routes.bin", data);
+        var item = NewItem(url);
+        var options = TestUtil.Options(TempDir, connections: 1);
+        options.Routes = new[]
+        {
+            new NetworkRoute("a", "A", new[] { IPAddress.Parse("127.0.0.4") }),
+            new NetworkRoute("b", "B", new[] { IPAddress.Parse("127.0.0.5") })
+        };
+        var job = NewJob(item, options);
+
+        await job.RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+        Assert.Equal(2, job.Connections.Count);
+    }
+
+    [Fact]
+    public async Task RouteWithoutMatchingAddressFamily_FallsBackToDefaultRoute()
+    {
+        var data = TestUtil.RandomBytes(512 * 1024, 53);
+        var url = _server.AddFile("/fallback.bin", data);
+        var item = NewItem(url);
+        var options = TestUtil.Options(TempDir, connections: 2);
+        options.Routes = new[] { new NetworkRoute("v6", "IPv6 only", new[] { IPAddress.IPv6Loopback }) };
+        var job = NewJob(item, options);
+
+        await job.RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+        Assert.All(job.Connections, c => Assert.Equal("IPv6 only", c.Route));
+    }
+
+    [Fact]
+    public async Task ResumedDownload_SurvivesAStrayFullResponse_WithoutLosingProgress()
+    {
+        var data = TestUtil.RandomBytes(3 * 1024 * 1024, 61);
+        _server.DelayPerChunkMs = 15;
+        var url = _server.AddFile("/stray.bin", data);
+        var item = NewItem(url);
+        var first = NewJob(item);
+        var run = first.RunAsync(_cts.Token);
+        await TestUtil.WaitUntilAsync(() => SumDownloaded(first) > 512 * 1024, "some progress");
+        first.Pause();
+        await run;
+        var kept = item.DownloadedBytes;
+        Assert.Equal(DownloadStatus.Paused, item.Status);
+        _server.DelayPerChunkMs = 0;
+        var next = _server.RequestCount + 1;
+        for (int i = next + 1; i <= next + 3; i++) _server.IgnoreRangeOnRequests[i] = true;
+        var options = TestUtil.Options(TempDir);
+
+        await NewJob(item, options).RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+        Assert.True(_server.BytesServed < 2L * data.Length + kept, "progress was thrown away and the file re-downloaded");
+    }
+
+    [Fact]
+    public async Task AdapterTheServerRejects_GivesUpItsParts_AndOthersFinishTheFile()
+    {
+        var data = TestUtil.RandomBytes(3 * 1024 * 1024, 63);
+        var url = _server.AddFile("/ipbound.bin", data);
+        var good = IPAddress.Parse("127.0.0.8");
+        var rejected = IPAddress.Parse("127.0.0.9");
+        _server.IgnoreRangeForClient = rejected;
+        _server.DelayPerChunkMs = 5;
+        var item = NewItem(url);
+        var options = TestUtil.Options(TempDir);
+        options.Routes = new[]
+        {
+            new NetworkRoute("eth", "Ethernet", new[] { good }),
+            new NetworkRoute("wifi", "Wi-Fi", new[] { rejected })
+        };
+        var job = NewJob(item, options);
+
+        await job.RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+        Assert.All(job.Connections.Where(c => c.Route == "Wi-Fi"), c => Assert.StartsWith("Gave up", c.Info));
+        Assert.Equal(new[] { "Ethernet" }, job.GetPieces().Select(p => p.Route).Distinct());
+        Assert.Equal(new[] { "Wi-Fi" }, job.GetRejectedRoutes());
+    }
+
+    [Fact]
+    public async Task RangesRefusedAfterProbe_RestartsWithOneConnection_InsteadOfCancelling()
+    {
+        var data = TestUtil.RandomBytes(2 * 1024 * 1024, 62);
+        var url = _server.AddFile("/norange.bin", data);
+        _server.IgnoreRangeFromRequest = 2;
+        var item = NewItem(url);
+
+        await NewJob(item).RunAsync(_cts.Token);
+
+        Assert.Equal(DownloadStatus.Completed, item.Status);
+        Assert.Equal(TestUtil.Sha256(data), TestUtil.Sha256File(item.FullPath));
+    }
+
+    [Fact]
+    public async Task MissingReferrer_SendsTheUrlOrigin_AndExplicitReferrerWins()
+    {
+        var data = TestUtil.RandomBytes(64 * 1024, 54);
+        var url = _server.AddFile("/ref.bin", data);
+        var implicitItem = NewItem(url, "implicit.bin");
+        await NewJob(implicitItem).RunAsync(_cts.Token);
+        Assert.Equal(DownloadStatus.Completed, implicitItem.Status);
+        Assert.All(_server.Referers, r => Assert.Equal(_server.BaseUrl, r));
+
+        _server.Referers.Clear();
+        var explicitItem = NewItem(url, "explicit.bin");
+        explicitItem.Referrer = "https://example.com/page";
+        await NewJob(explicitItem).RunAsync(_cts.Token);
+        Assert.Equal(DownloadStatus.Completed, explicitItem.Status);
+        Assert.All(_server.Referers, r => Assert.Equal("https://example.com/page", r));
     }
 
     public void Dispose()

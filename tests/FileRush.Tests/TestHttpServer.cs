@@ -59,6 +59,16 @@ public sealed class TestHttpServer : IDisposable
 
     public ConcurrentQueue<string?> RangeHeaders { get; } = new();
 
+    public ConcurrentQueue<IPAddress> ClientAddresses { get; } = new();
+
+    public ConcurrentQueue<string?> Referers { get; } = new();
+
+    public ConcurrentDictionary<int, bool> IgnoreRangeOnRequests { get; } = new();
+
+    public int IgnoreRangeFromRequest { get; set; }
+
+    public IPAddress? IgnoreRangeForClient { get; set; }
+
     public int RequestCount => Volatile.Read(ref _requestCount);
 
     public long BytesServed => Interlocked.Read(ref _bytesServed);
@@ -115,6 +125,8 @@ public sealed class TestHttpServer : IDisposable
         var response = context.Response;
         var rangeHeader = request.Headers["Range"];
         RangeHeaders.Enqueue(rangeHeader);
+        ClientAddresses.Enqueue(request.RemoteEndPoint.Address);
+        Referers.Enqueue(request.Headers["Referer"]);
         try
         {
             if (ResponseStatusOverride is { } status)
@@ -139,7 +151,10 @@ public sealed class TestHttpServer : IDisposable
             long start = 0;
             long end = data.Length - 1;
             var partial = false;
-            if (SupportRanges && TryParseRange(rangeHeader, data.Length, out var rangeStart, out var rangeEnd))
+            var ignoreRange = IgnoreRangeOnRequests.ContainsKey(number)
+                || (IgnoreRangeFromRequest > 0 && number >= IgnoreRangeFromRequest)
+                || (IgnoreRangeForClient is not null && IgnoreRangeForClient.Equals(request.RemoteEndPoint.Address));
+            if (SupportRanges && !ignoreRange && TryParseRange(rangeHeader, data.Length, out var rangeStart, out var rangeEnd))
             {
                 if (rangeStart >= data.Length)
                 {

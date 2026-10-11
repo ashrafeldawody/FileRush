@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
+using FileRush.App.Controls;
 using FileRush.App.Infrastructure;
 using FileRush.Core.Engine;
 using FileRush.Core.Models;
@@ -23,8 +25,22 @@ public sealed class ConnectionRow
 {
     public int Number { get; init; }
     public long Downloaded { get; init; }
+    public string Route { get; init; } = string.Empty;
+    public string Part { get; init; } = string.Empty;
     public string Info { get; init; } = string.Empty;
 }
+
+public sealed class PartRow
+{
+    public int Number { get; init; }
+    public string Range { get; init; } = string.Empty;
+    public string Size { get; init; } = string.Empty;
+    public string Done { get; init; } = string.Empty;
+    public string Connection { get; init; } = string.Empty;
+    public string Route { get; init; } = string.Empty;
+}
+
+public sealed record LegendEntry(Brush Brush, string Text);
 
 public partial class ProgressWindow : Window
 {
@@ -76,16 +92,39 @@ public partial class ProgressWindow : Window
         {
             segments = new[] { new SegmentSnapshot(0, _item.TotalSize - 1, _item.TotalSize, false) };
         }
+        var pieces = job?.GetPieces();
+        var routeBrushes = job is null ? null : BuildRouteBrushes(job);
         Bar.TotalSize = _item.TotalSize;
         Bar.Segments = segments;
+        Bar.Pieces = pieces;
+        Bar.RouteBrushes = routeBrushes;
         Bar.IndeterminateBytes = _item.DownloadedBytes;
+        Legend.ItemsSource = pieces is not null && routeBrushes is not null && _item.TotalSize > 0
+            ? BuildLegend(pieces, routeBrushes, segments.Sum(s => Math.Max(0, s.Downloaded)))
+            : null;
+
+        var rejectedRoutes = job?.GetRejectedRoutes() ?? Array.Empty<string>();
+        RejectedWarning.Visibility = rejectedRoutes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RejectedWarningText.Text = rejectedRoutes.Count > 0 ? BuildRejectedWarning(rejectedRoutes, job!) : string.Empty;
 
         if (_detailsVisible)
         {
             ElapsedText.Text = job is not null ? "Elapsed: " + ByteFormatter.FormatTime(job.Elapsed) : string.Empty;
             ConnectionsText.Text = job is not null ? $"Connections: {_item.ActiveConnections} of {job.Connections.Count}" : string.Empty;
-            var rows = job?.Connections.Select(c => new ConnectionRow { Number = c.Number, Downloaded = c.Downloaded, Info = c.Info }).ToList() ?? new List<ConnectionRow>();
-            ConnectionList.ItemsSource = rows;
+            var ordered = segments.OrderBy(s => s.Start).ToList();
+            var partByConnection = ordered
+                .Select((s, i) => (Segment: s, Number: i + 1))
+                .Where(p => p.Segment.Connection > 0)
+                .ToDictionary(p => p.Segment.Connection, p => p.Number);
+            ConnectionList.ItemsSource = job?.Connections.Select(c => new ConnectionRow
+            {
+                Number = c.Number,
+                Downloaded = c.Downloaded,
+                Route = RouteName(c.Route),
+                Part = partByConnection.TryGetValue(c.Number, out var part) ? part.ToString() : "-",
+                Info = c.Info
+            }).ToList() ?? new List<ConnectionRow>();
+            PartList.ItemsSource = ordered.Select((s, i) => BuildPartRow(s, i + 1, pieces)).ToList();
         }
 
         PauseButton.Content = _item.IsActive ? "Pause" : "Resume";
@@ -95,6 +134,70 @@ public partial class ProgressWindow : Window
             CancelButton.Content = "Close";
             AfterBox.IsEnabled = false;
         }
+    }
+
+    private static string RouteName(string route) => string.IsNullOrEmpty(route) ? "Default" : route;
+
+    private static string BuildRejectedWarning(IReadOnlyList<string> rejectedRoutes, DownloadJob job)
+    {
+        var refused = string.Join(" and ", rejectedRoutes);
+        var working = job.Connections.Select(c => c.Route).Distinct().Where(r => !rejectedRoutes.Contains(r)).ToList();
+        var continuing = working.Count > 0 ? $" The download continues over {string.Join(" and ", working)} only." : string.Empty;
+        return $"⚠ This server refused {refused}. The download link is probably locked to the IP address that opened it, so combining adapters cannot speed up this file.{continuing}";
+    }
+
+    private static Dictionary<string, Brush> BuildRouteBrushes(DownloadJob job)
+    {
+        var brushes = new Dictionary<string, Brush>();
+        foreach (var route in job.Connections.Select(c => c.Route).Distinct())
+        {
+            brushes[route] = SegmentBar.RoutePalette[brushes.Count % SegmentBar.RoutePalette.Count];
+        }
+        return brushes;
+    }
+
+    private List<LegendEntry> BuildLegend(IReadOnlyList<DownloadPiece> pieces, Dictionary<string, Brush> routeBrushes, long downloaded)
+    {
+        var total = _item.TotalSize;
+        var entries = routeBrushes.Select(r =>
+        {
+            var bytes = pieces.Where(p => p.Route == r.Key).Sum(p => p.Length);
+            return new LegendEntry(r.Value, $"{RouteName(r.Key)}: {ByteFormatter.Format(bytes)} ({bytes * 100.0 / total:F1} %)");
+        }).ToList();
+        var earlier = downloaded - pieces.Sum(p => p.Length);
+        if (earlier > 0)
+        {
+            entries.Add(new LegendEntry(SegmentBar.PreviousSession, $"Before resume: {ByteFormatter.Format(earlier)}"));
+        }
+        return entries;
+    }
+
+    private static PartRow BuildPartRow(SegmentSnapshot segment, int number, IReadOnlyList<DownloadPiece>? pieces)
+    {
+        var size = segment.End >= 0 ? segment.End - segment.Start + 1 : -1;
+        string route;
+        if (segment.Connection > 0)
+        {
+            route = RouteName(segment.Route);
+        }
+        else
+        {
+            var routes = pieces?
+                .Where(p => p.Start <= (segment.End < 0 ? long.MaxValue : segment.End) && p.End >= segment.Start)
+                .Select(p => RouteName(p.Route))
+                .Distinct()
+                .ToList() ?? new List<string>();
+            route = routes.Count > 0 ? string.Join(" + ", routes) : segment.Downloaded > 0 ? "Before resume" : "-";
+        }
+        return new PartRow
+        {
+            Number = number,
+            Range = $"{ByteFormatter.Format(segment.Start)} - {(segment.End >= 0 ? ByteFormatter.Format(segment.End + 1) : "end")}",
+            Size = size >= 0 ? ByteFormatter.Format(size) : "Unknown",
+            Done = size > 0 ? $"{Math.Min(100, segment.Downloaded * 100.0 / size):F0} %" : ByteFormatter.Format(segment.Downloaded),
+            Connection = segment.Connection > 0 ? $"#{segment.Connection}" : segment.IsComplete ? "Done" : "Waiting",
+            Route = route
+        };
     }
 
     private void Details_Click(object sender, RoutedEventArgs e)

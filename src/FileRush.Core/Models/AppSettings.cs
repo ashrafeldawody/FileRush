@@ -48,6 +48,10 @@ public sealed class AppSettings
 
     public int MinSegmentSizeKb { get; set; } = 512;
 
+    public bool CombineNetworkAdapters { get; set; }
+
+    public List<string> CombinedAdapterIds { get; set; } = new();
+
     public bool ShowStartDownloadDialog { get; set; } = true;
 
     public bool StartDownloadWhileShowingInfoDialog { get; set; } = true;

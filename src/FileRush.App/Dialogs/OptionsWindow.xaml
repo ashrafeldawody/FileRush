@@ -109,6 +109,19 @@
                         <TextBox x:Name="MinSegmentBox" Width="70" Style="{StaticResource FieldBox}" />
                         <TextBlock Text="Segments are split in half dynamically while they are larger than twice this size." Foreground="#6B7280" VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap" MaxWidth="280" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Multiple internet connections" />
+                    <CheckBox x:Name="CombineAdaptersCheck" Content="Combine network adapters: spread each download's connections across the adapters below" Margin="0,3" />
+                    <ItemsControl x:Name="AdapterList" Margin="20,2,0,0" IsEnabled="{Binding IsChecked, ElementName=CombineAdaptersCheck}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding Label}" IsChecked="{Binding Selected}" Margin="0,2" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="AdapterHintText" Margin="20,4,0,0" Foreground="#6B7280" TextWrapping="Wrap" />
+                    <Border Margin="20,6,0,0" Padding="8,5" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="3">
+                        <TextBlock TextWrapping="Wrap" Foreground="#78350F" Text="⚠ Some file hosts lock a download link to the IP address that opened it (each internet connection has its own public IP). On those sites only the adapter that opened the link can download; the others are refused and simply hand their parts back, so the download is not faster. Direct links and most CDNs work with all adapters." />
+                    </Border>
                 </StackPanel>
             </TabItem>
             <TabItem Header="Downloads">
